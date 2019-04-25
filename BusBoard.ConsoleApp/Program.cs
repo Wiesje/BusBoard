@@ -19,7 +19,6 @@ namespace BusBoard.ConsoleApp
         //  Ask user for relevant bus stop
         Console.WriteLine("What is the bus stop closest to you?");
         var busStopId = Console.ReadLine();
-        Console.WriteLine(string.Format("The next 5 buses at stop {0} are:", busStopId));
         
         // Create a new RestClient and RestRequest
         var client = new RestClient("https://api.tfl.gov.uk/");
@@ -31,10 +30,20 @@ namespace BusBoard.ConsoleApp
         // Sent the request to the web service and store the response
         var response = client.Execute<List<ArrivalsForStop>>(request);
         
+        // Check the requested bus stop exists
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            Console.WriteLine("Bus stop id not found.");
+            Console.WriteLine("Quit the program by pressing enter.");
+            Console.ReadLine();
+            Environment.Exit(1);
+        }
+
         // Sort the returned arrivals by expected arrival time
         List<ArrivalsForStop> sortedList = response.Data.OrderBy(o => o.ExpectedArrival).ToList();
-        
+
         // Display the next upcoming buses
+        Console.WriteLine("The next 5 buses at stop {0} are:", busStopId);
         for (int i = 0; i < 5; i++)
         {
             Console.WriteLine(sortedList[i].LineName);
