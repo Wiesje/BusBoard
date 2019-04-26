@@ -10,84 +10,104 @@ using RestSharp;
 
 namespace BusBoard.ConsoleApp
 {
-  class Program
-  {
-    static void Main(string[] args)
+    class Program
     {
-        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-        
-        //  Ask user for relevant bus stop
-        Console.WriteLine("What is the bus stop closest to you?");
-        var busStopId = Console.ReadLine();
-        
         // Create a new RestClient and RestRequest
-        var client = new RestClient("https://api.tfl.gov.uk/");
+        static readonly RestSharp.RestClient Client = new RestClient("https://api.tfl.gov.uk/");
 
-        // Generate request for inputted bus stop
-        var request = new RestRequest(string.Format("StopPoint/{0}/Arrivals", busStopId), Method.GET);
-        request.RequestFormat = DataFormat.Json;
-        
-        // Sent the request to the web service and store the response
-        var response = client.Execute<List<ArrivalsForStop>>(request);
-        
-        // Check the requested bus stop exists
-        if (response.StatusCode == HttpStatusCode.NotFound)
+        static void Main(string[] args)
         {
-            Console.WriteLine("Bus stop id not found.");
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
+            // Look up bus stop closest to location
+            // string busStopId = GetBusStopId(postcode);
+
+            // Display the next 5 buses from stop
+            GetNextFiveFromStop();
+        }
+
+        static void GetNextFiveFromStop()
+        {
+            IRestResponse<List<ArrivalsForStop>> response;
+            string busStopId;
+            do
+            {
+                busStopId = AskForPostcode();
+                response = SendRequest(busStopId);
+            } while (!CheckStopExists(response));
+
+            DisplayFirstFive(response, busStopId);
+
+            QuitProgram(0);
+        }
+
+        static string AskForPostcode()
+        {
+            //  Ask user for postcode
+            Console.WriteLine("What is your postcode?");
+            var postcode = Console.ReadLine();
+            return postcode;
+        }
+
+        static bool CheckStopExists(IRestResponse<List<ArrivalsForStop>> response)
+        {
+            // Check the requested bus stop exists
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                Console.WriteLine("Bus stop id not found.");
+                return false;
+            }
+            return true;
+        }
+
+        static void DisplayFirstFive(IRestResponse<List<ArrivalsForStop>> response, string busStopId)
+        {
+            // Sort the returned arrivals by expected arrival time
+            List<ArrivalsForStop> sortedList = response.Data.OrderBy(o => o.ExpectedArrival).ToList();
+
+            // Display the next upcoming buses
+            Console.WriteLine("The next 5 buses at stop {0} are:", busStopId);
+            for (int i = 0; i < 5; i++)
+            {
+                Console.WriteLine(sortedList[i].LineName);
+                Console.WriteLine(sortedList[i].ExpectedArrival);
+            }
+        }
+
+        static void QuitProgram(int exitcode)
+        {
+            // Quit program
             Console.WriteLine("Quit the program by pressing enter.");
             Console.ReadLine();
-            Environment.Exit(1);
+            Environment.Exit(exitcode);
         }
 
-        // Sort the returned arrivals by expected arrival time
-        List<ArrivalsForStop> sortedList = response.Data.OrderBy(o => o.ExpectedArrival).ToList();
-
-        // Display the next upcoming buses
-        Console.WriteLine("The next 5 buses at stop {0} are:", busStopId);
-        for (int i = 0; i < 5; i++)
+        static IRestResponse<List<ArrivalsForStop>> SendRequest(string busStopId)
         {
-            Console.WriteLine(sortedList[i].LineName);
-            Console.WriteLine(sortedList[i].ExpectedArrival);
+            // Generate request for inputted bus stop
+            var request = new RestRequest(string.Format("StopPoint/{0}/Arrivals", busStopId), Method.GET);
+            request.RequestFormat = DataFormat.Json;
+
+            // Sent the request to the web service and store the response
+            var response = Client.Execute<List<ArrivalsForStop>>(request);
+            return response;
         }
 
-        // Stop cmd from disappearing immediately
-        Console.WriteLine("Quit the program by pressing enter.");
-        Console.ReadLine();
-    }
-  }
-
-  public class ArrivalsForStop
-  {
-    public string Id { get; set; }
-    public int OperationType { get; set; }
-    public string VehicleId { get; set; }
-    public string NaptanId { get; set; }
-    public string StationName { get; set; }
-    public string LineId { get; set; }
-    public string LineName { get; set; }
-    public string PlatformName { get; set; }
-    public string Direction { get; set; }
-    public string Bearing { get; set; }
-    public string DestinationNaptanId { get; set; }
-    public string DestinationName { get; set; }
-    public DateTime TimeStamp { get; set; }
-    public int TimeToStation { get; set; }
-    public string CurrentLocation { get; set; }
-    public string Towards { get; set; }
-    public DateTime ExpectedArrival { get; set; }
-    public DateTime TimeToLive { get; set; }
-    public string ModeName { get; set; }
-    public Timing Timing { get; set; }
-
+        /*
+        static string GetBusStopId(string postcode)
+        {
+            var busStopId;
+    
+    
+    
+            return busStopId;
+        }
+        */
     }
 
-  public class Timing
-  {
-    public string CountdownServerAdjustment { get; set; }
-    public DateTime Source { get; set; }
-    public DateTime Insert { get; set; }
-    public DateTime Read { get; set; }
-    public DateTime Sent { get; set; }
-    public DateTime Received { get; set; }
+    public class ArrivalsForStop
+    {
+        public string LineName { get; set; }
+        public DateTime ExpectedArrival { get; set; }
     }
 }
